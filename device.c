@@ -264,4 +264,3 @@ VdpStatus vdp_get_information_string(char const **information_string)
 	*information_string = "sunxi VDPAU Driver";
 	return VDP_STATUS_OK;
 }
-
