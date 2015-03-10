@@ -272,7 +272,7 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 	}
 
 	if (!q->device->osd_enabled)
-		goto out_osd;
+		return VDP_STATUS_OK;
 
 	if (os->rgba.flags & RGBA_FLAG_NEEDS_CLEAR)
 		rgba_clear(&os->rgba);
@@ -323,16 +323,15 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 		ioctl(q->target->fd, DISP_CMD_LAYER_CLOSE, args);
 	}
 
-out_osd:
-	os->first_presentation_time = frame_time;
-	os->status = VDP_PRESENTATION_QUEUE_STATUS_IDLE;
-
 	return VDP_STATUS_OK;
 }
 
 static void *presentation_thread(void *param)
 {
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+	output_surface_ctx_t *os_prev = NULL;
+	output_surface_ctx_t *os_pprev = NULL;
 
 	int fd_fb = 0;
 
@@ -352,6 +351,19 @@ static void *presentation_thread(void *param)
 			task_t *task;
 			if (!q_pop_head(queue, (void *)&task))
 			{
+				output_surface_ctx_t *os_cur = handle_get(task->surface);
+
+				if (os_prev) /* This is the actually displayed surface */
+				{
+					os_prev->first_presentation_time = frame_time;
+					os_prev->status = VDP_PRESENTATION_QUEUE_STATUS_VISIBLE;
+				}
+				if (os_pprev) /* This is the previously displayed surface */
+					os_pprev->status = VDP_PRESENTATION_QUEUE_STATUS_IDLE;
+
+				os_pprev = os_prev;
+				os_prev = os_cur;
+
 				// run the task
 				do_presentation_queue_display(task);
 				free(task);
