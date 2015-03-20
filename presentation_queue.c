@@ -114,18 +114,107 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 	uint32_t clip_width = task->clip_width;
 	uint32_t clip_height = task->clip_height;
 
-	Window c;
-	int x,y;
-	XTranslateCoordinates(q->device->display, q->target->drawable, RootWindow(q->device->display, q->device->screen), 0, 0, &x, &y, &c);
-	XClearWindow(q->device->display, q->target->drawable);
+	// FIXME: not correct position if no surface is in queue
+	int i = 0;
+
+	while (XPending(q->device->display) && i++<20)
+	{
+		XEvent ev;
+		XNextEvent(q->device->display, &ev);
+
+		if (ev.type == UnmapNotify)	// window was unmapped
+		{
+			q->target->drawable_unmapped = 1;
+			break;
+		}
+
+		if (ev.type == MapNotify)	// window was unmapped
+		{
+			q->target->drawable_unmapped = 0;
+			q->target->drawable_changed = 0;
+			q->target->start_flag = 1;
+			break;
+		}
+
+		if (ev.type == ConfigureNotify)	// window dimension or position has changed
+		{
+			if (ev.xconfigure.x != q->target->drawable_x
+					|| ev.xconfigure.y != q->target->drawable_y
+					|| ev.xconfigure.width != q->target->drawable_width
+					|| ev.xconfigure.height != q->target->drawable_height)
+			{
+				q->target->drawable_x = ev.xconfigure.x;
+				q->target->drawable_y = ev.xconfigure.y;
+				q->target->drawable_width = ev.xconfigure.width;
+				q->target->drawable_height = ev.xconfigure.height;
+				q->target->drawable_changed = 1;
+			}
+		}
+	}
+
+	if (q->target->drawable_unmapped)
+	{
+		q->target->drawable_changed = 0;
+		XClearWindow(q->device->display, q->target->drawable);
+
+		uint32_t args[4] = { 0, q->target->layer, 0, 0 };
+		ioctl(q->target->fd, DISP_CMD_LAYER_CLOSE, args);
+		if (q->device->osd_enabled)
+		{
+			args[1] = q->target->layer_top;
+			ioctl(q->target->fd, DISP_CMD_LAYER_CLOSE, args);
+		}
+		return VDP_STATUS_OK;
+	}
+
+	if (q->target->drawable_changed)
+	{
+		// get new window offset
+		Window dummy;
+		XTranslateCoordinates(q->device->display, q->target->drawable, RootWindow(q->device->display, q->device->screen),
+		      0, 0, &q->target->x, &q->target->y, &dummy);
+		XClearWindow(q->device->display, q->target->drawable);
+
+		uint32_t args[4] = { 0, q->target->layer, 0, 0 };
+		__disp_rect_t scn_win, src_win;
+
+		// Get scn window dimension and position
+		scn_win.x = q->target->x + os->video_dst_rect.x0;
+		scn_win.y = q->target->y + os->video_dst_rect.y0;
+		scn_win.width = os->video_dst_rect.x1 - os->video_dst_rect.x0;
+		scn_win.height = os->video_dst_rect.y1 - os->video_dst_rect.y0;
+
+		// Get src window dimension and position
+		src_win.x = os->video_src_rect.x0;
+		src_win.y = os->video_src_rect.y0;
+		src_win.width = os->video_src_rect.x1 - os->video_src_rect.x0;
+		src_win.height = os->video_src_rect.y1 - os->video_src_rect.y0;
+
+		// Do the y cutoff (due to a bug in sunxi disp driver)
+		if (scn_win.y < 0)
+		{
+			int cutoff = -scn_win.y;
+			src_win.y += cutoff;
+			src_win.height -= cutoff;
+			scn_win.y = 0;
+			scn_win.height -= cutoff;
+		}
+
+		// Reset window dimension and position
+		args[2] = (unsigned long)(&scn_win);
+		ioctl(q->target->fd, DISP_CMD_LAYER_SET_SCN_WINDOW, args);
+		args[2] = (unsigned long)(&src_win);
+		ioctl(q->target->fd, DISP_CMD_LAYER_SET_SRC_WINDOW, args);
+
+		q->target->drawable_changed = 0;
+	}
 
 	if (os->vs)
 	{
 		static int last_id;
-
 		uint32_t args[4] = { 0, q->target->layer, 0, 0 };
 
-		if (os->start_flag == 1)
+		if (os->start_flag == 1 || q->target->start_flag == 1)
 		{
 			last_id = -1; // reset the video.id
 
@@ -174,8 +263,8 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 			layer_info.src_win.y = os->video_src_rect.y0;
 			layer_info.src_win.width = os->video_src_rect.x1 - os->video_src_rect.x0;
 			layer_info.src_win.height = os->video_src_rect.y1 - os->video_src_rect.y0;
-			layer_info.scn_win.x = x + os->video_dst_rect.x0;
-			layer_info.scn_win.y = y + os->video_dst_rect.y0;
+			layer_info.scn_win.x = q->target->x + os->video_dst_rect.x0;
+			layer_info.scn_win.y = q->target->y + os->video_dst_rect.y0;
 			layer_info.scn_win.width = os->video_dst_rect.x1 - os->video_dst_rect.x0;
 			layer_info.scn_win.height = os->video_dst_rect.y1 - os->video_dst_rect.y0;
 			layer_info.ck_enable = q->device->osd_enabled ? 0 : 1;
@@ -208,6 +297,7 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 			ioctl(q->target->fd, DISP_CMD_VIDEO_START, args);
 
 			os->start_flag = 0; // initial run is done, only set video.addr[] in the next runs
+			q->target->start_flag = 0;
 		}
 		else
 		{
@@ -241,7 +331,6 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 			}
 
 			ioctl(q->target->fd, DISP_CMD_VIDEO_SET_FB, args);
-
 			last_id++;
 		}
 
@@ -307,8 +396,8 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 		layer_info.src_win.y = os->rgba.dirty.y0;
 		layer_info.src_win.width = os->rgba.dirty.x1 - os->rgba.dirty.x0;
 		layer_info.src_win.height = os->rgba.dirty.y1 - os->rgba.dirty.y0;
-		layer_info.scn_win.x = x + os->rgba.dirty.x0;
-		layer_info.scn_win.y = y + os->rgba.dirty.y0;
+		layer_info.scn_win.x = q->target->x + os->rgba.dirty.x0;
+		layer_info.scn_win.y = q->target->y + os->rgba.dirty.y0;
 		layer_info.scn_win.width = min_nz(clip_width, os->rgba.dirty.x1) - os->rgba.dirty.x0;
 		layer_info.scn_win.height = min_nz(clip_height, os->rgba.dirty.y1) - os->rgba.dirty.y0;
 
@@ -392,7 +481,6 @@ VdpStatus vdp_presentation_queue_target_create_x11(VdpDevice device,
 	if (!qt)
 		return VDP_STATUS_RESOURCES;
 
-	qt->drawable = drawable;
 	qt->fd = open("/dev/disp", O_RDWR);
 	if (qt->fd == -1)
 	{
@@ -426,10 +514,7 @@ VdpStatus vdp_presentation_queue_target_create_x11(VdpDevice device,
 		args[1] = qt->layer_top;
 		ioctl(qt->fd, DISP_CMD_LAYER_TOP, args);
 	}
-
-	XSetWindowBackground(dev->display, drawable, 0x000102);
-
-	if (!dev->osd_enabled)
+	else
 	{
 		__disp_colorkey_t ck;
 		ck.ck_max.red = ck.ck_min.red = 0;
@@ -442,6 +527,22 @@ VdpStatus vdp_presentation_queue_target_create_x11(VdpDevice device,
 		args[1] = (unsigned long)(&ck);
 		ioctl(qt->fd, DISP_CMD_SET_COLORKEY, args);
 	}
+	qt->start_flag = 1;
+	qt->drawable_changed = 0;
+	qt->drawable_unmapped = 0;
+	qt->drawable_x = 0;
+	qt->drawable_y = 0;
+	qt->drawable_width = 0;
+	qt->drawable_height = 0;
+
+	qt->drawable = drawable;
+	XSelectInput(dev->display, drawable, StructureNotifyMask);
+
+	// get current window position
+	Window dummy;
+	XTranslateCoordinates(dev->display, qt->drawable, RootWindow(dev->display, dev->screen), 0, 0, &qt->x, &qt->y, &dummy);
+	XSetWindowBackground(dev->display, drawable, 0x000102);
+	XClearWindow(dev->display, drawable);
 
 	return VDP_STATUS_OK;
 
