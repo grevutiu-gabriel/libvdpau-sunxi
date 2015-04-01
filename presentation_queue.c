@@ -133,15 +133,17 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 		 * This closes both layers.
 		 */
 		case UnmapNotify:
-			q->target->drawable_unmapped = 1;
+			q->target->drawable_change = 0;
+			q->target->drawable_unmap = 1;
+			q->target->start_flag = 0;
 			break;
 		/*
 		 * Window was mapped.
 		 * This restarts the displaying routines without extra resizing.
 		 */
 		case MapNotify:
-			q->target->drawable_unmapped = 0;
-			q->target->drawable_changed = 0;
+			q->target->drawable_change = 0;
+			q->target->drawable_unmap = 0;
 			q->target->start_flag = 1;
 			break;
 		/*
@@ -158,7 +160,7 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 				q->target->drawable_y = ev.xconfigure.y;
 				q->target->drawable_width = ev.xconfigure.width;
 				q->target->drawable_height = ev.xconfigure.height;
-				q->target->drawable_changed = 1;
+				q->target->drawable_change = 1;
 			}
 			break;
 		default:
@@ -166,22 +168,23 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 		}
 	}
 
-	if (q->target->drawable_unmapped) /* Window was unmapped: Close both layers */
+	if (q->target->drawable_unmap) /* Window was unmapped or is already unmapped */
 	{
-		q->target->drawable_changed = 0;
-		XClearWindow(q->device->display, q->target->drawable);
-
-		uint32_t args[4] = { 0, q->target->layer, 0, 0 };
-		ioctl(q->target->fd, DISP_CMD_LAYER_CLOSE, args);
-		if (q->device->osd_enabled)
+		if (q->target->drawable_unmap == 1) /* Window was unmapped: Close both layers */
 		{
-			args[1] = q->target->layer_top;
+			uint32_t args[4] = { 0, q->target->layer, 0, 0 };
 			ioctl(q->target->fd, DISP_CMD_LAYER_CLOSE, args);
+			if (q->device->osd_enabled)
+			{
+				args[1] = q->target->layer_top;
+				ioctl(q->target->fd, DISP_CMD_LAYER_CLOSE, args);
+			}
+			q->target->drawable_unmap = 2;
 		}
 		return VDP_STATUS_OK;
 	}
 
-	if (q->target->drawable_changed)
+	if (q->target->drawable_change)
 	{
 		/* Get new window offset */
 		Window dummy;
@@ -220,7 +223,7 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 		args[2] = (unsigned long)(&src_win);
 		ioctl(q->target->fd, DISP_CMD_LAYER_SET_SRC_WINDOW, args);
 
-		q->target->drawable_changed = 0;
+		q->target->drawable_change = 0;
 	}
 
 	/*
@@ -570,8 +573,8 @@ VdpStatus vdp_presentation_queue_target_create_x11(VdpDevice device,
 	}
 
 	qt->start_flag = 1;
-	qt->drawable_changed = 0;
-	qt->drawable_unmapped = 0;
+	qt->drawable_change = 0;
+	qt->drawable_unmap = 0;
 	qt->drawable_x = 0;
 	qt->drawable_y = 0;
 	qt->drawable_width = 0;

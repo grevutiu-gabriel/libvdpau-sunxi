@@ -79,8 +79,8 @@ typedef struct
 	int layer_top;
 	int x, y;
 	int start_flag;
-	int drawable_changed;
-	int drawable_unmapped;
+	int drawable_change;
+	int drawable_unmap;
 	int drawable_x;
 	int drawable_y;
 	int drawable_width;
