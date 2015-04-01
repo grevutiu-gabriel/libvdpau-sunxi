@@ -127,34 +127,28 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 		XEvent ev;
 		XNextEvent(q->device->display, &ev);
 
+		switch(ev.type) {
 		/*
 		 * Window was unmapped.
 		 * This closes both layers.
 		 */
-		if (ev.type == UnmapNotify)
-		{
+		case UnmapNotify:
 			q->target->drawable_unmapped = 1;
 			break;
-		}
-
 		/*
 		 * Window was mapped.
 		 * This restarts the displaying routines without extra resizing.
 		 */
-		if (ev.type == MapNotify)
-		{
+		case MapNotify:
 			q->target->drawable_unmapped = 0;
 			q->target->drawable_changed = 0;
 			q->target->start_flag = 1;
 			break;
-		}
-
 		/*
 		 * Window dimension or position has changed.
 		 * Reset x, y, width and height without restarting the whole displaying routines.
 		 */
-		if (ev.type == ConfigureNotify)
-		{
+		case ConfigureNotify:
 			if (ev.xconfigure.x != q->target->drawable_x
 					|| ev.xconfigure.y != q->target->drawable_y
 					|| ev.xconfigure.width != q->target->drawable_width
@@ -166,6 +160,9 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 				q->target->drawable_height = ev.xconfigure.height;
 				q->target->drawable_changed = 1;
 			}
+			break;
+		default:
+			break;
 		}
 	}
 
