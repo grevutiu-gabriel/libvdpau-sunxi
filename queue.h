@@ -17,6 +17,9 @@
  *
  */
 
+#ifndef __QUEUE_H__
+#define __QUEUE_H__
+
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,3 +62,5 @@ qStatus q_queue_free(QUEUE *queue);
 qStatus q_node_free(NODE *node, int data_free);
 qStatus q_lock(QUEUE *queue);
 qStatus q_unlock(QUEUE *queue);
+
+#endif
