@@ -18,6 +18,10 @@ To disable OSD support for e.g. subtitles, set VDPAU_NOOSD environment
 variable to 1 (OSD enabled by default):
    $ export VDPAU_NOOSD=1
 
+To disable the vertical synchronisation, set VDPAU_NOVSYNC environment
+variable to 1 (VSync enabled by default):
+   $ export VDPAU_NOVSYNC=1
+
 To enable deinterlacer support, set VDPAU_DEINT environment
 variable to 1:
    $ export VDPAU_DEINT=1

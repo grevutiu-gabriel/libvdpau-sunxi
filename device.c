@@ -45,6 +45,23 @@ VdpStatus vdp_imp_device_create_x11(Display *display,
 		return VDP_STATUS_ERROR;
 	}
 
+	/* Check for disabled VSync */
+	const char *env_vdpau_vsync = getenv("VDPAU_NOVSYNC");
+	if (env_vdpau_vsync && strncmp(env_vdpau_vsync, "1", 1) == 0)
+		VDPAU_DBG("VSYNC disabled.");
+	else
+	{
+		dev->fb_fd = open("/dev/fb0", O_RDWR);
+		if (dev->fb_fd != -1)
+		{
+			dev->vsync_enabled = 1;
+			VDPAU_DBG("VSYNC enabled.");
+		}
+		else
+			VDPAU_DBG("Failed to open /dev/fb0! VSYNC disabled!");
+	}
+
+	/* Check for disabled OSD */
 	const char *env_vdpau_osd = getenv("VDPAU_NOOSD");
 	if (env_vdpau_osd && strncmp(env_vdpau_osd, "1", 1) == 0)
 		VDPAU_DBG("OSD disabled.");
@@ -60,6 +77,7 @@ VdpStatus vdp_imp_device_create_x11(Display *display,
 			VDPAU_DBG("Failed to open /dev/g2d! OSD disabled.");
 	}
 
+	/* Check for enabled Deinterlacer */
 	const char *env_vdpau_deint = getenv("VDPAU_DEINT");
 	if (env_vdpau_deint && strncmp(env_vdpau_deint, "1", 1) == 0)
 	{
@@ -82,6 +100,8 @@ VdpStatus vdp_device_destroy(VdpDevice device)
 
 	if (dev->osd_enabled)
 		close(dev->g2d_fd);
+	if (dev->vsync_enabled)
+		close(dev->fb_fd);
 	ve_close();
 	XCloseDisplay(dev->display);
 
