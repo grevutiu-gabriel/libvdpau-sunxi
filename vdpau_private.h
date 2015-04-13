@@ -59,6 +59,7 @@ typedef struct video_surface_ctx_struct
 	int luma_size;
 	void *decoder_private;
 	void (*decoder_private_free)(struct video_surface_ctx_struct *surface);
+	int start_flag;
 } video_surface_ctx_t;
 
 typedef struct decoder_ctx_struct
@@ -136,7 +137,6 @@ typedef struct
 	int video_deinterlace, video_field;
 	VdpTime first_presentation_time;
 	VdpPresentationQueueStatus status;
-	int start_flag;
 } output_surface_ctx_t;
 
 typedef struct

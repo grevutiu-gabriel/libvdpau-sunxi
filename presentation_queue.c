@@ -243,7 +243,7 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 		static int last_id;
 		uint32_t args[4] = { 0, q->target->layer, 0, 0 };
 
-		if (os->start_flag == 1 || q->target->start_flag == 1)
+		if (os->vs->start_flag == 1 || q->target->start_flag == 1)
 		{
 			last_id = -1; /* Reset the video.id */
 
@@ -317,7 +317,7 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 			ioctl(q->target->fd, DISP_CMD_LAYER_OPEN, args);
 			ioctl(q->target->fd, DISP_CMD_VIDEO_START, args);
 
-			os->start_flag = 0;		/* Initial run is done, only set video.addr[] in the next runs */
+			os->vs->start_flag = 0;		/* Initial run is done, only set video.addr[] in the next runs */
 			q->target->start_flag = 0;
 		}
 		else
