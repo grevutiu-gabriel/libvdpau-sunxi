@@ -306,13 +306,6 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 				layer_info.scn_win.height -= cutoff;
 			}
 
-			layer_info.fb.addr[0] = 0;
-			layer_info.fb.addr[1] = 0;
-			layer_info.fb.addr[2] = 0;
-
-			args[2] = (unsigned long)(&layer_info);
-			ioctl(q->target->fd, DISP_CMD_LAYER_SET_PARA, args);
-
 			layer_info.fb.addr[0] = ve_virt2phys(os->yuv->data) + 0x40000000;
 			layer_info.fb.addr[1] = ve_virt2phys(os->yuv->data + os->vs->luma_size) + 0x40000000;
 			layer_info.fb.addr[2] = ve_virt2phys(os->yuv->data + os->vs->luma_size + os->vs->luma_size / 4) + 0x40000000;
