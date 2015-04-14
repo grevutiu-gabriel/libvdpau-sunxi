@@ -48,33 +48,33 @@ VdpStatus vdp_imp_device_create_x11(Display *display,
 	/* Check for disabled VSync */
 	const char *env_vdpau_vsync = getenv("VDPAU_NOVSYNC");
 	if (env_vdpau_vsync && strncmp(env_vdpau_vsync, "1", 1) == 0)
-		VDPAU_DBG("VSYNC disabled.");
+		VDPAU_LOG(LINFO, "VSYNC disabled.");
 	else
 	{
 		dev->fb_fd = open("/dev/fb0", O_RDWR);
 		if (dev->fb_fd != -1)
 		{
 			dev->vsync_enabled = 1;
-			VDPAU_DBG("VSYNC enabled.");
+			VDPAU_LOG(LINFO, "VSYNC enabled.");
 		}
 		else
-			VDPAU_DBG("Failed to open /dev/fb0! VSYNC disabled!");
+			VDPAU_LOG(LWARN, "Failed to open /dev/fb0! VSYNC disabled!");
 	}
 
 	/* Check for disabled OSD */
 	const char *env_vdpau_osd = getenv("VDPAU_NOOSD");
 	if (env_vdpau_osd && strncmp(env_vdpau_osd, "1", 1) == 0)
-		VDPAU_DBG("OSD disabled.");
+		VDPAU_LOG(LINFO, "OSD disabled.");
 	else
 	{
 		dev->g2d_fd = open("/dev/g2d", O_RDWR);
 		if (dev->g2d_fd != -1)
 		{
 			dev->osd_enabled = 1;
-			VDPAU_DBG("OSD enabled.");
+			VDPAU_LOG(LINFO, "OSD enabled.");
 		}
 		else
-			VDPAU_DBG("Failed to open /dev/g2d! OSD disabled.");
+			VDPAU_LOG(LWARN, "Failed to open /dev/g2d! OSD disabled.");
 	}
 
 	/* Check for enabled Deinterlacer */
@@ -82,10 +82,10 @@ VdpStatus vdp_imp_device_create_x11(Display *display,
 	if (env_vdpau_deint && strncmp(env_vdpau_deint, "1", 1) == 0)
 	{
 		dev->deint_enabled = 1;
-		VDPAU_DBG("Deinterlacer enabled.");
+		VDPAU_LOG(LINFO, "Deinterlacer enabled.");
 	}
 	else
-		VDPAU_DBG("Deinterlacer disabled.");
+		VDPAU_LOG(LINFO, "Deinterlacer disabled.");
 
 	*get_proc_address = &vdp_get_proc_address;
 

@@ -118,7 +118,7 @@ VdpStatus vdp_video_mixer_render(VdpVideoMixer mixer,
 		return VDP_STATUS_INVALID_HANDLE;
 
 	if (background_surface != VDP_INVALID_HANDLE)
-		VDPAU_DBG_ONCE("Requested unimplemented background_surface");
+		VDPAU_LOG(LINFO, "Requested unimplemented background_surface");
 
 	output_surface_ctx_t *os = handle_get(destination_surface);
 	if (!os)
@@ -173,7 +173,7 @@ VdpStatus vdp_video_mixer_render(VdpVideoMixer mixer,
 		os->rgba.flags |= RGBA_FLAG_NEEDS_CLEAR;
 
 	if (layer_count != 0)
-		VDPAU_DBG_ONCE("Requested unimplemented additional layers");
+		VDPAU_LOG(LINFO, "Requested unimplemented additional layers");
 
 	return VDP_STATUS_OK;
 }

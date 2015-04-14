@@ -20,14 +20,17 @@
 #ifndef __VDPAU_PRIVATE_H__
 #define __VDPAU_PRIVATE_H__
 
-#define DEBUG
-#define DEBUG_X11
 #define MAX_HANDLES 64
 #define VBV_SIZE (1 * 1024 * 1024)
+
+#define DEBUG
+#define DEBUG_LEVEL LINFO
 
 #include <stdlib.h>
 #include <vdpau/vdpau.h>
 #include <X11/Xlib.h>
+
+#include "vdpau_log.h"
 
 #define INTERNAL_YCBCR_FORMAT (VdpYCbCrFormat)0xffff
 
@@ -166,15 +169,6 @@ typedef struct
            _a < _b ? (_a == 0 ? _b : _a) : (_b == 0 ? _a : _b); })
 
 #define ALIGN(x, a) (((x) + ((typeof(x))(a) - 1)) & ~((typeof(x))(a) - 1))
-
-#ifdef DEBUG
-#include <stdio.h>
-#define VDPAU_DBG(format, ...) fprintf(stderr, "[VDPAU SUNXI] " format "\n", ##__VA_ARGS__)
-#define VDPAU_DBG_ONCE(format, ...) do { static uint8_t __once; if (!__once) { fprintf(stderr, "[VDPAU SUNXI] " format "\n", ##__VA_ARGS__); __once = 1; } } while(0)
-#else
-#define VDPAU_DBG(format, ...)
-#define VDPAU_DBG_ONCE(format, ...)
-#endif
 
 #define EXPORT __attribute__ ((visibility ("default")))
 
