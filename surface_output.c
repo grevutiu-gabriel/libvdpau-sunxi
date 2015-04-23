@@ -43,10 +43,19 @@ VdpStatus vdp_output_surface_create(VdpDevice device,
 	out->saturation = 1.0;
 	out->first_presentation_time = 0;
 	out->status = VDP_PRESENTATION_QUEUE_STATUS_IDLE;
+	out->rgba_cnt = 0;
 
 	ret = rgba_create(&out->rgba, dev, width, height, rgba_format);
 	if (ret != VDP_STATUS_OK)
 	{
+		handle_destroy(*surface);
+		return ret;
+	}
+
+	ret = rgba_create(&out->prev_rgba, dev, width, height, rgba_format);
+	if (ret != VDP_STATUS_OK)
+	{
+		rgba_destroy(&out->rgba);
 		handle_destroy(*surface);
 		return ret;
 	}
@@ -61,6 +70,7 @@ VdpStatus vdp_output_surface_destroy(VdpOutputSurface surface)
 		return VDP_STATUS_INVALID_HANDLE;
 
 	rgba_destroy(&out->rgba);
+	rgba_destroy(&out->prev_rgba);
 
 	if (out->yuv)
 		yuv_unref(out->yuv);
@@ -99,8 +109,6 @@ VdpStatus vdp_output_surface_get_bits_native(VdpOutputSurface surface,
 	output_surface_ctx_t *out = handle_get(surface);
 	if (!out)
 		return VDP_STATUS_INVALID_HANDLE;
-
-
 
 	return VDP_STATUS_ERROR;
 }
@@ -155,14 +163,32 @@ VdpStatus vdp_output_surface_render_output_surface(VdpOutputSurface destination_
                                                    VdpOutputSurfaceRenderBlendState const *blend_state,
                                                    uint32_t flags)
 {
+	VdpStatus ret;
+
 	output_surface_ctx_t *out = handle_get(destination_surface);
 	if (!out)
 		return VDP_STATUS_INVALID_HANDLE;
 
 	output_surface_ctx_t *in = handle_get(source_surface);
 
-	return rgba_render_surface(&out->rgba, destination_rect, in ? &in->rgba : NULL, source_rect,
+	if ((out->rgba_cnt != in->rgba.id) || !(in->rgba.flags & RGBA_FLAG_RENDERED))
+	{
+		VDPAU_LOG(LDBG, "rgba surface changed!");
+		ret = rgba_render_surface(&out->rgba, destination_rect, in ? &in->rgba : NULL, source_rect,
 					colors, blend_state, flags);
+		out->prev_rgba = out->rgba;
+		out->rgba_cnt = in->rgba.id;
+		out->rgba.flags |= RGBA_FLAG_CHANGED;
+		in->rgba.flags |= RGBA_FLAG_RENDERED;
+	}
+	else
+	{
+		VDPAU_LOG(LDBG, "rgba surface unchanged!");
+		out->rgba = out->prev_rgba;
+		ret = VDP_STATUS_OK;
+	}
+
+	return ret;
 }
 
 VdpStatus vdp_output_surface_render_bitmap_surface(VdpOutputSurface destination_surface,
@@ -173,14 +199,32 @@ VdpStatus vdp_output_surface_render_bitmap_surface(VdpOutputSurface destination_
                                                    VdpOutputSurfaceRenderBlendState const *blend_state,
                                                    uint32_t flags)
 {
+	VdpStatus ret;
+
 	output_surface_ctx_t *out = handle_get(destination_surface);
 	if (!out)
 		return VDP_STATUS_INVALID_HANDLE;
 
 	bitmap_surface_ctx_t *in = handle_get(source_surface);
 
-	return rgba_render_surface(&out->rgba, destination_rect, in ? &in->rgba : NULL, source_rect,
+	if ((out->rgba_cnt != in->rgba.id) || !(in->rgba.flags & RGBA_FLAG_RENDERED))
+	{
+		VDPAU_LOG(LDBG, "rgba surface changed!");
+		ret = rgba_render_surface(&out->rgba, destination_rect, in ? &in->rgba : NULL, source_rect,
 					colors, blend_state, flags);
+		out->prev_rgba = out->rgba;
+		out->rgba_cnt = in->rgba.id;
+		out->rgba.flags |= RGBA_FLAG_CHANGED;
+		in->rgba.flags |= RGBA_FLAG_RENDERED;
+	}
+	else
+	{
+		VDPAU_LOG(LDBG, "rgba surface unchanged!");
+		out->rgba = out->prev_rgba;
+		ret = VDP_STATUS_OK;
+	}
+
+	return ret;
 }
 
 VdpStatus vdp_output_surface_query_capabilities(VdpDevice device,

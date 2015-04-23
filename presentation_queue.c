@@ -421,9 +421,11 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 	if (os->rgba.flags & RGBA_FLAG_NEEDS_CLEAR)
 		rgba_clear(&os->rgba);
 
-	if (os->rgba.flags & RGBA_FLAG_DIRTY)
+	if (os->rgba.flags & RGBA_FLAG_DIRTY) /* rgba surface is dirty */
 	{
 		rgba_flush(&os->rgba);
+		if (os->rgba.flags & RGBA_FLAG_CHANGED) /* we have some blits changed */
+		{
 
 		__disp_layer_info_t layer_info;
 		memset(&layer_info, 0, sizeof(layer_info));
@@ -462,12 +464,20 @@ static VdpStatus do_presentation_queue_display(task_t *task)
 		args[2] = (unsigned long)(&layer_info);
 		ioctl(q->target->fd, DISP_CMD_LAYER_SET_PARA, args);
 
-		ioctl(q->target->fd, DISP_CMD_LAYER_OPEN, args);
+		if (!(os->rgba.flags & RGBA_FLAG_LAYEROPEN))
+		{
+			ioctl(q->target->fd, DISP_CMD_LAYER_OPEN, args);
+			os->rgba.flags |= RGBA_FLAG_LAYEROPEN;
+		}
+
+		os->rgba.flags &= ~RGBA_FLAG_CHANGED;
+		}
 	}
 	else
 	{
 		uint32_t args[4] = { 0, q->target->layer_top, 0, 0 };
 		ioctl(q->target->fd, DISP_CMD_LAYER_CLOSE, args);
+		os->rgba.flags &= ~RGBA_FLAG_LAYEROPEN;
 	}
 
 	return VDP_STATUS_OK;

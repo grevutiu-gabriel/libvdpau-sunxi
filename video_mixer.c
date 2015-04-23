@@ -165,7 +165,13 @@ VdpStatus vdp_video_mixer_render(VdpVideoMixer mixer,
 	os->contrast = mix->contrast;
 	os->saturation = mix->saturation;
 	os->hue = mix->hue;
-	os->vs->start_flag = mix->start_stream;
+
+	/*
+	 * If we don't do this, we possibly overwrite os->vs->start_flag with a second video_mixer_render
+	 * and the presentation routine will never be restarted.
+	 */
+	if (!os->vs->start_flag)
+		os->vs->start_flag = mix->start_stream;
 	mix->csc_change = 0;
 	mix->start_stream = 0;
 
