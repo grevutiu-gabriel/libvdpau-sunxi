@@ -30,9 +30,13 @@
 #include <vdpau/vdpau.h>
 #include <X11/Xlib.h>
 
+#include "queue.h"
 #include "vdpau_log.h"
 
 #define INTERNAL_YCBCR_FORMAT (VdpYCbCrFormat)0xffff
+
+QUEUE *queue;
+void *presentation_thread(void *param);
 
 typedef struct
 {
@@ -45,6 +49,9 @@ typedef struct
 	int osd_enabled;
 	int vsync_enabled;
 	int deint_enabled;
+	int thread;
+	int thread_exit;
+	int nopq;
 } device_ctx_t;
 
 typedef struct

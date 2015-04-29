@@ -17,11 +17,15 @@
  *
  */
 
+#include <pthread.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include "vdpau_private.h"
 #include "ve.h"
+
+extern QUEUE *queue;
+static pthread_t presentation_thread_id;
 
 VdpStatus vdp_imp_device_create_x11(Display *display,
                                     int screen,
@@ -37,12 +41,24 @@ VdpStatus vdp_imp_device_create_x11(Display *display,
 
 	dev->display = XOpenDisplay(XDisplayString(display));
 	dev->screen = screen;
+	dev->thread = 0;
+	dev->thread_exit = 0;
+	dev->nopq = 0;
 
 	if (!ve_open())
 	{
 		XCloseDisplay(dev->display);
 		handle_destroy(*device);
 		return VDP_STATUS_ERROR;
+	}
+
+	if (!queue)
+		queue = q_queue_init();
+
+	if (dev->thread == 0)
+	{
+		pthread_create(&presentation_thread_id, NULL, presentation_thread, dev);
+		dev->thread = 1;
 	}
 
 	/* Check for disabled VSync */
@@ -97,6 +113,14 @@ VdpStatus vdp_device_destroy(VdpDevice device)
 	device_ctx_t *dev = handle_get(device);
 	if (!dev)
 		return VDP_STATUS_INVALID_HANDLE;
+
+	/* Stop thread */
+	dev->thread_exit = 1;
+	pthread_join(presentation_thread_id, NULL);
+
+	/* Free queue */
+	q_queue_free(queue, 0);
+	queue = NULL;
 
 	if (dev->osd_enabled)
 		close(dev->g2d_fd);
