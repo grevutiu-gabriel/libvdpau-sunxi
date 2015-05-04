@@ -41,9 +41,7 @@ VdpStatus vdp_imp_device_create_x11(Display *display,
 
 	dev->display = XOpenDisplay(XDisplayString(display));
 	dev->screen = screen;
-	dev->thread = 0;
-	dev->thread_exit = 0;
-	dev->nopq = 0;
+	dev->flags = 0;
 
 	if (!ve_open())
 	{
@@ -55,10 +53,10 @@ VdpStatus vdp_imp_device_create_x11(Display *display,
 	if (!queue)
 		queue = q_queue_init();
 
-	if (dev->thread == 0)
+	if (!(dev->flags & DEVICE_FLAG_THREAD))
 	{
+		dev->flags |= DEVICE_FLAG_THREAD;
 		pthread_create(&presentation_thread_id, NULL, presentation_thread, dev);
-		dev->thread = 1;
 	}
 
 	/* Check for disabled VSync */
@@ -70,7 +68,7 @@ VdpStatus vdp_imp_device_create_x11(Display *display,
 		dev->fb_fd = open("/dev/fb0", O_RDWR);
 		if (dev->fb_fd != -1)
 		{
-			dev->vsync_enabled = 1;
+			dev->flags |= DEVICE_FLAG_VSYNC;
 			VDPAU_LOG(LINFO, "VSYNC enabled.");
 		}
 		else
@@ -86,7 +84,7 @@ VdpStatus vdp_imp_device_create_x11(Display *display,
 		dev->g2d_fd = open("/dev/g2d", O_RDWR);
 		if (dev->g2d_fd != -1)
 		{
-			dev->osd_enabled = 1;
+			dev->flags |= DEVICE_FLAG_OSD;
 			VDPAU_LOG(LINFO, "OSD enabled.");
 		}
 		else
@@ -97,7 +95,7 @@ VdpStatus vdp_imp_device_create_x11(Display *display,
 	const char *env_vdpau_deint = getenv("VDPAU_DEINT");
 	if (env_vdpau_deint && strncmp(env_vdpau_deint, "1", 1) == 0)
 	{
-		dev->deint_enabled = 1;
+		dev->flags |= DEVICE_FLAG_DEINT;
 		VDPAU_LOG(LINFO, "Deinterlacer enabled.");
 	}
 	else
@@ -115,20 +113,19 @@ VdpStatus vdp_device_destroy(VdpDevice device)
 		return VDP_STATUS_INVALID_HANDLE;
 
 	/* Stop thread */
-	dev->thread_exit = 1;
+	dev->flags |= DEVICE_FLAG_EXIT;
 	pthread_join(presentation_thread_id, NULL);
 
 	/* Free queue */
 	q_queue_free(queue, 0);
 	queue = NULL;
 
-	if (dev->osd_enabled)
+	if (dev->flags & DEVICE_FLAG_OSD)
 		close(dev->g2d_fd);
-	if (dev->vsync_enabled)
+	if (dev->flags & DEVICE_FLAG_VSYNC)
 		close(dev->fb_fd);
 	ve_close();
 	XCloseDisplay(dev->display);
-
 	handle_destroy(device);
 
 	return VDP_STATUS_OK;
